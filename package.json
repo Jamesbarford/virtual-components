@@ -1,7 +1,7 @@
 {
   "name": "virtual-components",
   "version": "1.0.0",
-  "description": "heu",
+  "description": "a javascript framework for creating components",
   "main": "index.js",
   "scripts": {
     "start": "NODE_ENV=development webpack-dev-server --progress",
