@@ -9,7 +9,7 @@ export abstract class Component<Props = Dictionary<any>> implements ComponentI<P
   public props?: Props;
 
   constructor(props?: Props) {
-    if(props) {
+    if (props) {
       this.props = props;
     }
   }
