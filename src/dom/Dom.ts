@@ -3,7 +3,7 @@ import { StatefulComponent } from "../lib/StatefulComponent";
 import { Render } from "./Render";
 
 export class Dom {
-  public static instatiateStatefulComponent(
+  public static instatiateComponent(
     el: StatefulComponent,
     composeRender?: (r: Render<GenericHTML>) => void
   ): StatefulComponent {
@@ -23,7 +23,7 @@ export class Dom {
 
   public static appendToDom(parentIdOrClass: string, el: StatefulComponent): void {
     const root = <HTMLElement>document.querySelector(parentIdOrClass);
-    Dom.instatiateStatefulComponent(el, render => root.appendChild(render.el));
+    Dom.instatiateComponent(el, render => root.appendChild(render.el));
   }
 
   public static create<T extends HTMLElement>(el: HTMLTag): T {

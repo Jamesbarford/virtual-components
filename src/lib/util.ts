@@ -1,24 +1,15 @@
-function isNil(arg: any): boolean {
+export function isNil(arg: any): boolean {
   if (arg === undefined || arg === null) return true;
   return false;
-}
-
-if (!Array.isArray) {
-  Array.isArray = <T>(arg: any): arg is T[] => {
-    return Object.prototype.toString.call(arg) === "[object Array]";
-  };
 }
 
 export function isArray<T>(arr: any, warn: boolean = process.env.NODE_ENV === "development"): arr is T[] {
   if (isNil(arr) || !Array.isArray(arr)) {
     if (warn) {
-      console.warn(
-        `${JSON.stringify(arr)} of type ${isNil(arr) ? arr : arr.constructor.name} is not a valid array`
-      );
+      console.warn(`${JSON.stringify(arr)} of type ${isNil(arr) ? arr : arr.constructor.name} is not a valid array`);
     }
     return false;
   }
-
   return true;
 }
 
@@ -174,11 +165,12 @@ export function filterArray<T>(arr: T[], cb: (val: T, i: number) => boolean): T[
   return newArr;
 }
 
-export function keyBy<T>(iterable: Dictionary<any>[], property: string): Dictionary<T> {
+export function keyBy<T>(iterable: (Dictionary<T> | T)[], property: string): Dictionary<T> {
   return reduceArray(
     iterable,
     (acc, val) => {
-      return Object.assign(acc, { [val[property]]: val });
+      if (isObject(val)) return Object.assign(acc, { [`${[val[property]]}`]: val });
+      return Object.assign(acc, { [`${val}`]: val });
     },
     {}
   );
@@ -212,8 +204,16 @@ export function clone<T>(o: T): T {
   }
 }
 
-export function uuid(str?: string): string {
-  return `${str ? str + "-" : ""}${(Date.now() + Math.floor(Math.random() * 1000)).toString()}`;
+export function uuid(): string {
+  if (!("crypto" in window)) {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, c =>
+      c === "x" ? ((Math.random() * 16) | 0).toString(16) : ((Math.random() * 16) | (0 & 0x3) | 0x8).toString(16)
+    );
+  }
+
+  return (<any>[1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c: string) =>
+    (+c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (+c / 4)))).toString(16)
+  );
 }
 
 export const hashCode = (str?: string): number => {

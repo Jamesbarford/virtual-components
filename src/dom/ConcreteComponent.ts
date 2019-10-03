@@ -1,11 +1,9 @@
-import { reduceArray, ensureType, mapArray, isArray } from "../lib/util";
+import { reduceArray, ensureType, mapArray, uuid } from "../lib/util";
 import { Render } from "./Render";
 import { StatefulComponent } from "../lib/StatefulComponent";
 import { Dom } from "./Dom";
 
-export type ConcreteProps<T extends HTMLTag = HTMLTag> =
-  | [DomAttr<T>, ...(ConcreteComponent | StatefulComponent)[]]
-  | undefined;
+export type ConcreteProps = [DomAttr, ...(ConcreteComponent | StatefulComponent)[]] | undefined;
 
 type ParentChildDict = {
   parent: Render<GenericHTML>;
@@ -15,42 +13,43 @@ type ParentChildDict = {
 interface ConcreteComponentI<El extends HTMLElement = any> {
   domAttr: DomAttr;
   $$htmlTag: HTMLTag;
+  id: string;
   children?: (StatefulComponent | ConcreteComponent<El>)[];
-  id?: string;
+  hasChildren(): boolean;
+  hasChildren(): boolean;
+  assignId(): void
+  setId(id: string): void
 }
-
 
 export class ConcreteComponent<El extends HTMLElement = any> implements ConcreteComponentI<El> {
   public domAttr: DomAttr;
   public $$htmlTag: HTMLTag;
+  public id: string;
   public children?: (StatefulComponent | ConcreteComponent<El>)[];
-  public id?: string;
-  private _$$hasChildren: boolean;
-  // private _$$childrenDepth: number;
+  private $$hasChildren: boolean;
 
   constructor($$htmlTag: HTMLTag, props: ConcreteProps) {
     this.$$htmlTag = $$htmlTag;
-    this.domAttr = ConcreteComponent.findDomAttr(props);
-    this.children = ConcreteComponent._$$findChildren(props);
-    this._$$hasChildren = this.children ? true : false;
-    // this._$$childrenDepth = this._$$hasChildren ? this.children.length : undefined;
+    this.domAttr = this.$$findDomAttr(props);
+    this.children = this.$$findChildren(props);
+    Object.defineProperties(this, {
+      $$hasChildren: { value: this.children && this.children.length ? true : false }
+    });
+    this.assignId();
   }
 
-  private static _$$findChildren(props: ConcreteProps): (StatefulComponent | ConcreteComponent)[] | undefined {
-    if (!props) return undefined;
-    const children = reduceArray(
-      props,
-      (rv: (StatefulComponent | ConcreteComponent)[], val) => {
-        if (ConcreteComponent.isConcreteComponent(val) || ConcreteComponent.isStatefulComponent(val)) {
-          rv.push(val);
-        } else {
-          return undefined;
-        }
-        return val;
-      },
-      []
-    );
-    return children.length ? children : undefined;
+  public hasChildren(): boolean {
+    return this.$$hasChildren;
+  }
+
+  public assignId(): void {
+    if (!this.id) {
+      this.id = uuid();
+    }
+  }
+
+  public setId(id: string): void {
+    this.id = id;
   }
 
   /**
@@ -67,7 +66,7 @@ export class ConcreteComponent<El extends HTMLElement = any> implements Concrete
    *
    * @example
    * const topLevelNode: ConcreteComponent;
-   * const domParent: Render<GenericHTML>; `the first `
+   * const domParent: Render<GenericHTML>; `the first element`
    *
    * ConcreteComponent.composeTree(topLevelNode.children, { ancestor: domParent, children: [] })
    *
@@ -107,28 +106,27 @@ export class ConcreteComponent<El extends HTMLElement = any> implements Concrete
    * </div>
    * ```
    */
-  public static composeTree(c: (StatefulComponent | ConcreteComponent)[], parentChildDict: ParentChildDict) {
+  public static composeTree(
+    c: (StatefulComponent | ConcreteComponent)[] | undefined,
+    parentChildDict: ParentChildDict
+  ): ParentChildDict {
+    if (!c) return parentChildDict;
     return reduceArray(
       c,
-      (parentChildDict, child, i) => {
+      (parentChildDict, child) => {
         if (ConcreteComponent.isStatefulComponent(child)) {
-          const component = Dom.instatiateStatefulComponent(child);
-          // TODO: ID
-          const id = `${parentChildDict.parent.$$htmlTag}-${i}`;
-          parentChildDict.parent.id = id;
+          const component = Dom.instatiateComponent(child);
+
+          parentChildDict.parent.assignId();
           parentChildDict.parent.appendChild(component.topLevelNode);
           return;
         }
         const childRender = Render.create(child.$$htmlTag, child.domAttr);
-        const id = `${childRender.$$htmlTag}-${i}`;
-        // TODO:  ID
-        childRender.id = id;
+        childRender.assignId();
         parentChildDict.parent.appendChild(childRender);
         parentChildDict.children.push(childRender);
-        if (child._$$hasChildren) {
-          const id = `${parentChildDict.parent.$$htmlTag}-${i}`;
-          // TODO:  ID
-          parentChildDict.parent.id = id;
+        if (child.hasChildren()) {
+          parentChildDict.parent.assignId();
           parentChildDict.parent.appendChild(
             ConcreteComponent.composeTree(child.children, { parent: childRender, children: parentChildDict.children })
               .parent
@@ -142,13 +140,10 @@ export class ConcreteComponent<El extends HTMLElement = any> implements Concrete
 
   // Light Weight flatten
   public static renderToConcrete(components: Render<GenericHTML>[]): ConcreteComponent[] {
+    if (components.length === 0) return [];
     return mapArray(components, render => {
       const concreteComponent = new ConcreteComponent(render.$$htmlTag, [render.domAttr]);
-
-      if (render.el.children.length) {
-        concreteComponent._$$hasChildren = true;
-        // concreteComponent._$$childrenDepth = render.el.children.length;
-      }
+      concreteComponent.setId(render.id);
 
       return concreteComponent;
     });
@@ -165,21 +160,14 @@ export class ConcreteComponent<El extends HTMLElement = any> implements Concrete
   public static flatten(c: (StatefulComponent | ConcreteComponent)[]): ConcreteComponent[] {
     return reduceArray(
       c,
-      (concreteArr: ConcreteComponent[], child: ConcreteComponent, i) => {
-        // if(!child.children) return concreteArr;
+      (concreteArr: ConcreteComponent[], child: ConcreteComponent) => {
         // if it is stateful it is assumed it will have its own children to render,
         // this means that each component is responsible for returning and maintaining its children.
-        if (ConcreteComponent.isStatefulComponent(child)) {
-          return concreteArr;
-        }
-        // TODO: somehow a unique id needs to be maintained across renders 🤔
-        child.id = `${child.$$htmlTag}-${i}`;
+        if (ConcreteComponent.isStatefulComponent(child)) return concreteArr;
+
         concreteArr.push(child);
-        if (isArray(child.children)) {
+        if (child.hasChildren()) {
           concreteArr.push(...ConcreteComponent.flatten(child.children));
-        } else {
-          child._$$hasChildren = false;
-          return concreteArr;
         }
         return concreteArr;
       },
@@ -199,9 +187,26 @@ export class ConcreteComponent<El extends HTMLElement = any> implements Concrete
     return ensureType(c, p => p instanceof StatefulComponent);
   }
 
-  public static findDomAttr(prop: ConcreteProps): DomAttr | undefined {
+  private $$findDomAttr(prop: ConcreteProps): DomAttr | undefined {
     if (!prop) return;
     if (ConcreteComponent.isDomAttr(prop[0])) return prop[0];
     return undefined;
+  }
+
+  private $$findChildren(props: ConcreteProps): (StatefulComponent | ConcreteComponent)[] | undefined {
+    if (!props) return;
+    const children = reduceArray(
+      props,
+      (rv: (StatefulComponent | ConcreteComponent)[], val) => {
+        if (ConcreteComponent.isConcreteComponent(val) || ConcreteComponent.isStatefulComponent(val)) {
+          rv.push(val);
+        } else {
+          return undefined;
+        }
+        return val;
+      },
+      []
+    );
+    return children.length ? children : undefined;
   }
 }

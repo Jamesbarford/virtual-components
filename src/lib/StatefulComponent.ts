@@ -1,16 +1,20 @@
 import { Render } from "../dom/Render";
-import { isEqualObj, forEachArray } from "./util";
+import { isEqualObj, forEachArray, isNil } from "./util";
 import { ConcreteComponent } from "../dom/ConcreteComponent";
 import { Component, ComponentI } from "./Component";
 
-type FunctionState<S, K extends keyof S, P> = (prevState: Readonly<S>, props: Readonly<P>) => Pick<S, K> | S | null;
+type FunctionState<S, K extends keyof S, P = Dictionary<any>> = (
+  prevState: Readonly<S>,
+  props: Readonly<P>
+) => Pick<S, K> | S | null;
 type ObjectState<S, K extends keyof S> = Pick<S, K> | S | null;
-export type GenericState<S, K extends keyof S, P> = FunctionState<S, K, P> | Partial<ObjectState<S, K>>;
+export type GenericState<S, K extends keyof S> = FunctionState<S, K> | Partial<ObjectState<S, K>>;
 
 interface StatefulComponentI<Props = Dictionary<any>> extends ComponentI<Props> {
   topLevelNode: Render<HTMLElement>;
   children: Render<HTMLElement>[];
   currentConcreteChildren: ConcreteComponent[];
+  setState<S, K extends keyof S>(state: Partial<GenericState<S, K>>, props?: Partial<DomAttr>): void;
 }
 
 export abstract class StatefulComponent<Props = Dictionary<any>, State = Dictionary<any>> extends Component<Props>
@@ -19,6 +23,7 @@ export abstract class StatefulComponent<Props = Dictionary<any>, State = Diction
   public topLevelNode: Render<HTMLElement>;
   public children: Render<HTMLElement>[];
   public currentConcreteChildren: ConcreteComponent[];
+  private $$renderMap: Map<string, Render<GenericHTML>>;
 
   constructor(props?: Props) {
     super(props);
@@ -38,23 +43,31 @@ export abstract class StatefulComponent<Props = Dictionary<any>, State = Diction
    * 5) set `currentConcreteChildren` to the new flattened array
    * ```
    */
-  public setState<K extends keyof State>(state: GenericState<State, K, DomAttr>, props?: DomAttr): void {
-    if (this._stateIsFunction(state)) {
+  public setState<K extends keyof State>(state: GenericState<State, K>, props?: DomAttr): void {
+    if (this.$$stateIsFunction(state)) {
       if (isEqualObj(this.state, state(this.state, props))) return;
       Object.assign(this.state, state(this.state, props));
     } else {
       if (isEqualObj(this.state, state)) return;
       Object.assign(this.state, state);
     }
+    this.$$reRender();
+  }
 
-    const newConcrete = ConcreteComponent.flatten(this.render().children);
-    const previousConcrete = this.currentConcreteChildren;
+  private $$reRender(): void {
+    if (isNil(this.$$renderMap)) {
+      this.$$renderMap = Render.createRenderMap(this.children);
+    }
+    const newConcrete: ConcreteComponent[] = ConcreteComponent.flatten(this.render().children);
 
-    // TODO: indexing by `i` seems waaayyyyy to fragile and prone to blow up
     forEachArray(newConcrete, (c, i) => {
-      const previous = previousConcrete[i];
-      const render = this.children[i];
+      const previous: ConcreteComponent = this.currentConcreteChildren[i];
 
+      if (!this.$$renderMap.has(previous.id)) return;
+
+      const render: Render<HTMLElement> = this.$$renderMap.get(previous.id);
+
+      c.setId(render.id);
       if (c.$$htmlTag !== previous.$$htmlTag) {
         render.replace(c.$$htmlTag, c.domAttr);
         return;
@@ -64,15 +77,13 @@ export abstract class StatefulComponent<Props = Dictionary<any>, State = Diction
         render.setDomAttr(c.domAttr);
         return;
       }
-      return void 0;
+      return;
     });
 
     this.currentConcreteChildren = newConcrete;
   }
 
-  private _stateIsFunction<K extends keyof State>(
-    state: GenericState<State, K, DomAttr>
-  ): state is FunctionState<State, K, DomAttr> {
+  private $$stateIsFunction<K extends keyof State>(state: GenericState<State, K>): state is FunctionState<State, K> {
     if (typeof state === "function") {
       return true;
     }
