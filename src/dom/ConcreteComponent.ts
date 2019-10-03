@@ -16,8 +16,8 @@ interface ConcreteComponentI<El extends HTMLElement = any> {
   id: string;
   children?: (StatefulComponent | ConcreteComponent<El>)[];
   hasChildren(): boolean;
-  assignId(): void
-  setId(id: string): void
+  assignId(): void;
+  setId(id: string): void;
 }
 
 export class ConcreteComponent<El extends HTMLElement = any> implements ConcreteComponentI<El> {
