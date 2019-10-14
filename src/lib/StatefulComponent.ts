@@ -21,7 +21,6 @@ export abstract class StatefulComponent<Props = Dictionary<any>, State = Diction
 implements StatefulComponentI {
   protected abstract state: State;
   public componentDidUpdate?(prevProps?: Props, prevState?: State): void;
-  public componentDidMount?(): void;
   public topLevelNode: Render<HTMLElement>;
   public children: Render<HTMLElement>[];
   public currentConcreteChildren: ConcreteComponent[];
@@ -29,24 +28,13 @@ implements StatefulComponentI {
 
   constructor(props?: Props) {
     super(props);
-    if(this.componentDidMount) {
-      this.componentDidMount()
-    }
   }
 
   /**
    *
    * @param state `Object` of whatever the extended class has as state
    * @param props if there are props passed in this will accept them
-   *
-   * @internals:
-   * ```markup
-   * 1) fires render to create new concrete components
-   * 2) flattens new concrete components array
-   * 3) checks positions of array against the actual elements
-   * 4) if there is a change the `rendered` elements will be updated by taking the new dom attr
-   * 5) set `currentConcreteChildren` to the new flattened array
-   * ```
+   * `componentDidUpdate` will get called if not undefined
    */
   public setState<K extends keyof State>(state: GenericState<State, K>, props?: DomAttr): void {
     let prevState: State = clone(this.state);
@@ -63,6 +51,19 @@ implements StatefulComponentI {
     this.$$reRender();
   }
 
+  /**
+   * `$$reRender`
+   * 
+   * @internals:
+   * ```markup
+   * 1) fires render to create new concrete components
+   * 2) flattens new concrete components array
+   * 3) checks against map to retrive old values
+   * 4) if there is a change the `rendered` elements will be updated by taking the new dom attr
+   * 5) set id to previous id to maintain mapping
+   * 6) set `currentConcreteChildren` to the new flattened array
+   * ```
+   */
   private $$reRender(): void {
     if (isNil(this.$$renderMap)) {
       this.$$renderMap = Render.createRenderMap(this.children);
@@ -72,6 +73,7 @@ implements StatefulComponentI {
     forEachArray(newConcrete, (c, i) => {
       const previous: ConcreteComponent = this.currentConcreteChildren[i];
 
+      // this is wrong, what if something is programmatically generated?
       if (!this.$$renderMap.has(previous.id)) return;
 
       const render: Render<HTMLElement> = this.$$renderMap.get(previous.id);
