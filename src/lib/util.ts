@@ -31,7 +31,7 @@ export function ensureType<T>(o: T, cb: (o: T) => boolean): o is T {
 export function forEachObj<T>(o: T, cb: (key: string, currVal: any, i: number) => void): void {
   if (!isObject(o)) return;
 
-  const keys = Object.keys(o);
+  const keys: string[] = Object.keys(o);
   if (!keys.length) return;
 
   let i: number = 0;
@@ -44,7 +44,7 @@ export function forEachObj<T>(o: T, cb: (key: string, currVal: any, i: number) =
 export function mapObject<T, V>(o: Dictionary<T>, cb: (key: string, prop: T, i: number) => V): V[] {
   if (!isObject(o)) return;
 
-  const keys = Object.keys(o);
+  const keys: string[] = Object.keys(o);
   if (!keys.length) return;
 
   const arr: V[] = [];
@@ -64,14 +64,16 @@ export function reduceObj<T, V>(
 ): V {
   if (!isObject(o)) return;
 
-  let i: number = 0;
-  const keys = Object.keys(o);
+  const keys: string[] = Object.keys(o);
 
-  while (keys.length > i) {
-    cb(returnVal, keys[i], o[keys[i]], i);
-    i++;
-  }
-  return returnVal;
+  return reduceArray(
+    keys,
+    (acc, cur, i) => {
+      cb(acc, cur, o[cur], i);
+      return acc;
+    },
+    returnVal
+  );
 }
 
 function removeWhiteSpace(str: string): string {
@@ -95,30 +97,13 @@ export function isEqualObj<T = any>(o: Dictionary<T>, o2: Dictionary<T>): boolea
 }
 
 export function forEachArray<T>(arr: T[], cb: (val: T, i: number) => void): void {
-  isArray(arr);
-
-  if (arr.forEach) return arr.forEach(cb);
-
-  let i: number = 0;
-  while (arr.length > i) {
-    cb(arr[i], i);
-    i++;
-  }
+  if (!isArray(arr)) return;
+  return arr.forEach(cb);
 }
 
 export function mapArray<T, V>(arr: T[], cb: (val: T, i: number) => V): V[] {
-  isArray(arr);
-
-  if (arr.map) return arr.map(cb);
-
-  let i: number = 0;
-  const newVals: V[] = [];
-
-  while (arr.length > i) {
-    newVals.push(cb(arr[i], i));
-    i++;
-  }
-  return newVals;
+  if (!isArray(arr)) return [];
+  return arr.map(cb);
 }
 
 export function recurseArray<T extends T[], V>(
@@ -126,7 +111,7 @@ export function recurseArray<T extends T[], V>(
   cb: (returnVal: V, currVal: T, i: number) => any,
   returnVal: V
 ): V {
-  isArray(arr);
+  if (!isArray(arr)) return;
 
   let i: number = 0;
   while (arr.length > i) {
@@ -141,6 +126,7 @@ export function recurseArray<T extends T[], V>(
 }
 
 export function flattenArray<T extends T[], V>(...arr: T[]): V[] {
+  if (!isArray(arr)) return;
   return recurseArray(
     arr,
     (rv, curr) => {
@@ -152,17 +138,8 @@ export function flattenArray<T extends T[], V>(...arr: T[]): V[] {
 }
 
 export function filterArray<T>(arr: T[], cb: (val: T, i: number) => boolean): T[] {
-  isArray(arr);
-  if (arr.filter) return arr.filter(cb);
-
-  let i: number = 0;
-  const newArr: T[] = [];
-  while (arr.length > i) {
-    if (cb(arr[i], i)) newArr.push(arr[i]);
-    i++;
-  }
-
-  return newArr;
+  if (!isArray(arr)) return;
+  return arr.filter(cb);
 }
 
 export function keyBy<T>(iterable: (Dictionary<T> | T)[], property: string): Dictionary<T> {
@@ -177,27 +154,17 @@ export function keyBy<T>(iterable: (Dictionary<T> | T)[], property: string): Dic
 }
 
 export function reduceArray<T, V>(arr: T[], cb: (returnVal: V, currVal: T, i: number) => any, returnVal: V): V {
-  isArray(arr);
-
-  if (arr.reduce) {
-    return arr.reduce((rv, currVal, i): V => {
-      cb(rv, currVal, i);
-      return rv;
-    }, returnVal);
-  }
-
-  let i: number = 0;
-  while (arr.length > i) {
-    cb(returnVal, arr[i], i);
-    i++;
-  }
-  return returnVal;
+  if (!isArray(arr)) return;
+  return arr.reduce((rv, currVal, i): V => {
+    cb(rv, currVal, i);
+    return rv;
+  }, returnVal);
 }
 
 export function clone<T>(o: T): T {
-  if (isArray(o)) {
+  if (isArray(o, false)) {
     return (<any>mapArray(o, arr => (isArray(arr) ? clone(arr) : arr))) as T;
-  } else if (isObject(o)) {
+  } else if (isObject(o, false)) {
     return Object.assign({}, o);
   } else {
     throw Error(`${JSON.stringify(o)} of type ${typeof o} is not cloneable`);
@@ -216,16 +183,6 @@ export function uuid(): string {
   );
 }
 
-export const hashCode = (str?: string): number => {
-  const id = str ? str : uuid();
-  let hash: number = 0;
-  let i: number = id.length;
-  let chr: number;
-  if (i === 0) return hash;
-  while (i--) {
-    chr = id.charCodeAt(i);
-    hash = (hash << 5) - hash + chr;
-    hash |= 0;
-  }
-  return hash;
-};
+export function noop(..._args: []): void {
+  return void 0;
+}

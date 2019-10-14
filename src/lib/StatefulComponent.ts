@@ -1,5 +1,5 @@
 import { Render } from "../dom/Render";
-import { isEqualObj, forEachArray, isNil } from "./util";
+import { isEqualObj, forEachArray, isNil, clone } from "./util";
 import { ConcreteComponent } from "../dom/ConcreteComponent";
 import { Component, ComponentI } from "./Component";
 
@@ -18,8 +18,10 @@ interface StatefulComponentI<Props = Dictionary<any>> extends ComponentI<Props> 
 }
 
 export abstract class StatefulComponent<Props = Dictionary<any>, State = Dictionary<any>> extends Component<Props>
-  implements StatefulComponentI {
+implements StatefulComponentI {
   protected abstract state: State;
+  public componentDidUpdate?(prevProps?: Props, prevState?: State): void;
+  public componentDidMount?(): void;
   public topLevelNode: Render<HTMLElement>;
   public children: Render<HTMLElement>[];
   public currentConcreteChildren: ConcreteComponent[];
@@ -27,6 +29,9 @@ export abstract class StatefulComponent<Props = Dictionary<any>, State = Diction
 
   constructor(props?: Props) {
     super(props);
+    if(this.componentDidMount) {
+      this.componentDidMount()
+    }
   }
 
   /**
@@ -44,12 +49,16 @@ export abstract class StatefulComponent<Props = Dictionary<any>, State = Diction
    * ```
    */
   public setState<K extends keyof State>(state: GenericState<State, K>, props?: DomAttr): void {
+    let prevState: State = clone(this.state);
     if (this.$$stateIsFunction(state)) {
       if (isEqualObj(this.state, state(this.state, props))) return;
       Object.assign(this.state, state(this.state, props));
     } else {
       if (isEqualObj(this.state, state)) return;
       Object.assign(this.state, state);
+    }
+    if(this.componentDidUpdate) {
+      this.componentDidUpdate(this.props, prevState)
     }
     this.$$reRender();
   }

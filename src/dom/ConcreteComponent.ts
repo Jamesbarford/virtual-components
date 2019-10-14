@@ -71,7 +71,7 @@ export class ConcreteComponent<El extends HTMLElement = any> implements Concrete
    *
    *
    * @returns
-   * ```
+   * ```javascript
    * {
    * "parent": {
    * "domAttr": {
@@ -98,8 +98,7 @@ export class ConcreteComponent<El extends HTMLElement = any> implements Concrete
    * but they all are indivdually avalible in the child array and a mutation on a child will be reflected on the parent
    * as internally they are individual instances of what has been attached to the parent
    *
-   * ```
-   * html
+   * ```html
    * <div class="top-div">
    *    <button class="button">hey</button>
    * </div>
@@ -193,7 +192,7 @@ export class ConcreteComponent<El extends HTMLElement = any> implements Concrete
   }
 
   private $$findChildren(props: ConcreteProps): (StatefulComponent | ConcreteComponent)[] | undefined {
-    if (!props) return;
+    if (!props || !props.length) return;
     const children = reduceArray(
       props,
       (rv: (StatefulComponent | ConcreteComponent)[], val) => {
